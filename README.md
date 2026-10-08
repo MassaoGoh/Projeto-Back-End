@@ -48,6 +48,15 @@ Projeto Back-end/
 └── README.md
 ```
 
+## Diagramas
+
+Os diagramas editaveis do projeto estao na pasta `diagramas/`:
+
+- `arquitetura.drawio`: componentes e fluxo principal da API.
+- `banco_de_dados.drawio`: tabelas, campos, chaves e relacionamentos.
+
+Abra os arquivos no Draw.io (diagrams.net) ou com a extensao Draw.io Integration no VS Code. Para gerar imagens para entrega, use **File > Export as > PNG** ou **SVG**.
+
 ## Requisitos
 
 - Python 3.11+
