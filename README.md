@@ -2,13 +2,15 @@
 
 Projeto acadêmico de faculdade: API backend do Raízes do Nordeste, desenvolvida com Python, FastAPI e SQLAlchemy.
 
-A aplicação fornece autenticação via JWT, cadastro e consulta de usuários, além de uma base estrutural para expansão de módulos do negócio.
+A API oferece autenticação JWT, cadastro de usuários, consulta de unidades e produtos, criação e consulta de pedidos e processamento simulado de pagamentos.
 
 ## Visão geral
 
 - Framework: FastAPI
 - Banco de dados: SQLite
-- Autenticação: JWT com suporte a perfis de acesso
+- ORM: SQLAlchemy
+- Migrações: Alembic
+- Autenticação: JWT com perfis `ADMIN` e `CLIENTE`
 - Criptografia de senha: `pwdlib`
 - Validação de dados: Pydantic
 - Documentação automática: Swagger e Redoc
@@ -17,26 +19,32 @@ A aplicação fornece autenticação via JWT, cadastro e consulta de usuários, 
 
 ```text
 Projeto Back-end/
+├── alembic/
+│   └── versions/
 ├── app/
 │   ├── api/
 │   │   ├── auth.py
+│   │   ├── pagamentos.py
+│   │   ├── pedidos.py
+│   │   ├── produtos.py
+│   │   ├── unidades.py
 │   │   └── usuarios.py
+│   ├── application/
+│   │   └── services/
 │   ├── core/
 │   │   ├── config.py
 │   │   └── security.py
 │   ├── domain/
+│   │   ├── enums.py
 │   │   └── models/
 │   ├── infrastructure/
 │   │   └── database.py
 │   ├── schemas/
-│   ├── __init__.py
 │   ├── main.py
 │   └── seed.py
-├── alembic/
 ├── .env.example
-├── .gitignore
+├── alembic.ini
 ├── requirements.txt
-├── raizes.db
 └── README.md
 ```
 
@@ -48,7 +56,7 @@ Projeto Back-end/
 
 ## Configuração
 
-1. Clone o repositório.
+1. Clone o repositório e acesse a pasta do projeto.
 2. Crie e ative um ambiente virtual:
 
 ```bash
@@ -62,23 +70,46 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-4. Configure as variáveis de ambiente:
+4. Copie `.env.example` para `.env` e defina uma chave secreta própria em `JWT_SECRET_KEY`. Não use uma chave de exemplo em produção:
 
 ```bash
 copy .env.example .env
 ```
 
-Ou crie um arquivo `.env` com o conteúdo:
+O arquivo `.env` deve conter:
 
 ```env
-JWT_SECRET_KEY=sua-chave-secreta
+JWT_SECRET_KEY=troque-por-uma-chave-secreta
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
 
-## Inicialização
+## Banco de dados e dados iniciais
 
-### Rodar a aplicação
+O projeto usa SQLite no arquivo local `raizes.db`. Aplique as migrações antes de iniciar a API:
+
+```bash
+alembic upgrade head
+```
+
+Para criar os usuários de teste, a unidade, o estoque e os produtos iniciais:
+
+```bash
+python -m app.seed
+```
+
+O seed inclui estas credenciais para desenvolvimento local:
+
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Administrador | `admin@raizes.com` | `Admin123` |
+| Cliente | `cliente@raizes.com` | `Cliente@123` |
+
+Não use essas credenciais em produção.
+
+O catálogo inicial inclui Cuscuz, Tapioca, Bolo de Macaxeira e Suco de Cajá, associados à unidade “Raízes do Nordeste - Recife”.
+
+## Inicialização
 
 ```bash
 uvicorn app.main:app --reload
@@ -86,37 +117,29 @@ uvicorn app.main:app --reload
 
 A API ficará disponível em:
 
-- http://127.0.0.1:8000
-- Documentação Swagger: http://127.0.0.1:8000/docs
-- Documentação Redoc: http://127.0.0.1:8000/redoc
+- API: <http://127.0.0.1:8000>
+- Swagger: <http://127.0.0.1:8000/docs>
+- Redoc: <http://127.0.0.1:8000/redoc>
 
-### Popular usuário administrador
+## Endpoints
 
-O projeto possui um seed para criar um usuário admin inicial:
+Os exemplos usam JSON com nomes de campos em camelCase quando aplicável. Rotas marcadas como autenticadas exigem um token Bearer.
 
-```bash
-python -m app.seed
-```
+### Autenticação e usuários
 
-Credenciais padrão:
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| `POST` | `/auth/login` | Público | Autentica e retorna um JWT |
+| `POST` | `/usuarios` | Público | Cadastra um usuário com perfil `CLIENTE` |
+| `GET` | `/usuarios/me` | Autenticado | Retorna os dados do usuário atual |
+| `GET` | `/usuarios/admin/teste` | Administrador | Rota de teste de acesso administrativo |
 
-- E-mail: `admin@raizes.com`
-- Senha: `Admin123`
-
-## Endpoints principais
-
-### Autenticação
-
-#### POST `/auth/login`
-
-Realiza login e retorna um token JWT.
-
-Exemplo de payload:
+Login:
 
 ```json
 {
-  "email": "admin@raizes.com",
-  "senha": "Admin123"
+  "email": "cliente@raizes.com",
+  "senha": "Cliente@123"
 }
 ```
 
@@ -129,63 +152,66 @@ Resposta:
 }
 ```
 
-### Usuários
+Para chamar uma rota protegida, envie o JWT no cabeçalho HTTP `Authorization` usando o esquema `Bearer`.
 
-#### POST `/usuarios`
+### Unidades e produtos
 
-Cria um novo usuário.
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| `GET` | `/unidades` | Público | Lista unidades ativas |
+| `GET` | `/produtos` | Público | Lista produtos ativos |
+| `GET` | `/produtos?unidadeId=1` | Público | Lista produtos ativos com estoque disponível na unidade |
 
-Exemplo de payload:
+### Pedidos
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| `POST` | `/pedidos` | Autenticado | Cria um pedido |
+| `GET` | `/pedidos` | Autenticado | Lista pedidos; clientes veem os próprios e administradores veem todos |
+| `GET` | `/pedidos/{pedido_id}` | Autenticado | Consulta um pedido próprio ou, para administradores, qualquer pedido |
+
+É possível filtrar a listagem por `canalPedido` e `status`, por exemplo:
+
+```text
+GET /pedidos?canalPedido=APP&status=AGUARDANDO_PAGAMENTO
+```
+
+Criação de pedido:
 
 ```json
 {
-  "nome": "Maria Silva",
-  "email": "maria@email.com",
-  "senha": "Senha123"
+  "unidadeId": 1,
+  "canalPedido": "APP",
+  "formaPagamento": "MOCK",
+  "itens": [
+    {
+      "produtoId": 1,
+      "quantidade": 2
+    }
+  ]
 }
 ```
 
-#### GET `/usuarios/me`
+Os canais aceitos são `APP`, `TOTEM`, `BALCAO`, `PICKUP` e `WEB`. O pedido é criado com status `AGUARDANDO_PAGAMENTO`; a API valida unidade, produto e estoque, calcula o total com os preços atuais e reduz o estoque solicitado.
 
-Retorna os dados do usuário autenticado.
+### Pagamentos
 
-Requer header:
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| `POST` | `/pagamentos` | Autenticado | Registra uma tentativa de pagamento simulada |
 
-```http
-Authorization: Bearer <token>
+Exemplo:
+
+```json
+{
+  "pedidoId": 1,
+  "resultado": "APROVADO"
+}
 ```
 
-#### GET `/usuarios/admin/teste`
+`resultado` aceita `APROVADO` ou `NEGADO`. O usuário só pode pagar seus próprios pedidos; administradores podem pagar qualquer pedido. Um resultado aprovado altera o status do pedido para `PAGO`; um resultado negado altera para `PAGAMENTO_NEGADO`. `formaPagamento: "MOCK"` e esse resultado são simulações, não integração com um provedor de pagamentos real.
 
-Endpoint de teste para validação de acesso administrativo.
-
-## Autenticação
-
-Os endpoints protegidos exigem o header de autorização:
-
-```http
-Authorization: Bearer <token>
-```
-
-O token é gerado no login e contém:
-
-- `sub`: ID do usuário
-- `perfil`: perfil do usuário (ex.: `ADMIN`, `CLIENTE`)
-- `exp`: data de expiração
-
-## Banco de dados
-
-O projeto usa SQLite com arquivo local:
-
-```text
-raizes.db
-```
-
-## Observações
-
-- O projeto está estruturado em camadas (`api`, `core`, `domain`, `infrastructure`, `schemas`).
-- A base do backend já contempla autenticação e gestão de usuários, com espaço para expansão de módulos do domínio do Raízes do Nordeste.
-- Caso queira evoluir o projeto com migrations, o diretório `alembic/` está disponível para esse propósito.
+Os status possíveis de pedido incluem `AGUARDANDO_PAGAMENTO`, `PAGO`, `EM_PREPARO`, `PRONTO`, `ENTREGUE`, `CANCELADO` e `PAGAMENTO_NEGADO`.
 
 ## Licença
 
