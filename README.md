@@ -1,6 +1,6 @@
 # Raízes do Nordeste API
 
-API backend do projeto Raízes do Nordeste, desenvolvida com Python, FastAPI e SQLAlchemy.
+Projeto acadêmico de faculdade: API backend do Raízes do Nordeste, desenvolvida com Python, FastAPI e SQLAlchemy.
 
 A aplicação fornece autenticação via JWT, cadastro e consulta de usuários, além de uma base estrutural para expansão de módulos do negócio.
 
