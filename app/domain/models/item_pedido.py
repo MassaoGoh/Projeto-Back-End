@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database import Base
 
-class Item_pedido(Base):
+class ItemPedido(Base):
     __tablename__ = "itens_pedido"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
