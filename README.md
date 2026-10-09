@@ -228,7 +228,7 @@ Os testes automatizados da API usam `TestClient` e um banco SQLite em memória; 
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -v
+py -m pytest -v
 ```
 
 Cada teste prepara cliente, unidade, produto e estoque próprios. As evidências abaixo indicam o teste identificável na saída de `pytest -v` e a operação que pode ser demonstrada no Swagger (`/docs`) com seu status e trecho de resposta.

@@ -5,9 +5,11 @@ from app.domain.enums import (
     StatusPagamento,
     StatusPedido
 )
+from app.domain.models import usuario
 from app.domain.models.pagamento import Pagamento
 from app.domain.models.pedido import Pedido
 from app.domain.models.usuario import Usuario
+from app.core.audit import audit_event
 from app.schemas.pagamento import (
     PagamentoCreate,
     PagamentoResponse
@@ -83,6 +85,22 @@ def processar_pagamento(
 
         db.refresh(pagamento)
         db.refresh(pedido)
+
+        action=(
+            "PAYMENT_APPROVED"
+            if status_pagamento == StatusPagamento.APROVADO.value
+            else "PAYMENT_DENIED"
+        )
+    
+        audit_event(
+            action=action,
+            user_id=usuario.id,
+            entity="PAGAMENTO",
+            entity_id=pagamento.id,
+            pedido_id=pedido.id,
+            resultado=pagamento.status,
+            status_pedido=pedido.status
+        )
 
     except Exception:
         db.rollback()

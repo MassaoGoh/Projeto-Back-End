@@ -11,6 +11,7 @@ from app.domain.models.pedido import Pedido
 from app.domain.models.produto import Produto
 from app.domain.models.unidade import Unidade
 from app.domain.models.usuario import Usuario
+from app.core.audit import audit_event
 from app.schemas.pedido import (
     ItemPedidoResponse,
     PedidoCreate,
@@ -175,6 +176,16 @@ def criar_pedido(
 
         db.commit()
         db.refresh(pedido)
+
+        audit_event(
+            action="CREATE_ORDER",
+            user_id=usuario.id,
+            entity="PEDIDO",
+            entity_id=pedido.id,
+            canal=pedido.canal_pedido,
+            status=pedido.status,
+            valor=pedido.valor_total
+        )   
 
     except Exception:
         db.rollback()
