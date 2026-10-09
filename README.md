@@ -48,6 +48,15 @@ Projeto Back-end/
 └── README.md
 ```
 
+## Diagramas
+
+Os diagramas editaveis do projeto estao na pasta `diagramas/`:
+
+- `arquitetura.drawio`: componentes e fluxo principal da API.
+- `banco_de_dados.drawio`: tabelas, campos, chaves e relacionamentos.
+
+Abra os arquivos no Draw.io (diagrams.net) ou com a extensao Draw.io Integration no VS Code. Para gerar imagens para entrega, use **File > Export as > PNG** ou **SVG**.
+
 ## Requisitos
 
 - Python 3.11+
@@ -212,6 +221,101 @@ Exemplo:
 `resultado` aceita `APROVADO` ou `NEGADO`. O usuário só pode pagar seus próprios pedidos; administradores podem pagar qualquer pedido. Um resultado aprovado altera o status do pedido para `PAGO`; um resultado negado altera para `PAGAMENTO_NEGADO`. `formaPagamento: "MOCK"` e esse resultado são simulações, não integração com um provedor de pagamentos real.
 
 Os status possíveis de pedido incluem `AGUARDANDO_PAGAMENTO`, `PAGO`, `EM_PREPARO`, `PRONTO`, `ENTREGUE`, `CANCELADO` e `PAGAMENTO_NEGADO`.
+
+## Cenários de teste
+
+Os testes automatizados da API usam `TestClient` e um banco SQLite em memória; não alteram `raizes.db` e não exigem a execução do seed real. Instale as dependências de desenvolvimento e execute:
+
+```bash
+pip install -r requirements-dev.txt
+py -m pytest -v
+```
+
+Cada teste prepara cliente, unidade, produto e estoque próprios. As evidências abaixo indicam o teste identificável na saída de `pytest -v` e a operação que pode ser demonstrada no Swagger (`/docs`) com seu status e trecho de resposta.
+
+### Cenários positivos — fluxo esperado
+
+#### T01 — Login retorna token
+
+- **Endpoint + método:** `POST /auth/login`
+- **Pré-condição:** usuário `cliente@raizes.com` cadastrado.
+- **Entrada (body):** `{"email":"cliente@raizes.com","senha":"Cliente@123"}`
+- **Saída esperada:** `200 OK`; `{"access_token":"<JWT>","token_type":"bearer"}`
+- **Evidência:** `tests/test_api.py::test_T01_login_retorna_token_valido` (`PASSED`); no Swagger, executar `POST /auth/login` e registrar o status e os campos da resposta.
+
+#### T02 — Cliente consulta o próprio perfil
+
+- **Endpoint + método:** `GET /usuarios/me`
+- **Pré-condição:** cliente cadastrado e autenticado; usar o token retornado pelo login.
+- **Entrada (header):** cabeçalho `Authorization` com token JWT válido; sem path, query ou body.
+- **Saída esperada:** `200 OK`; `{"id":<id>,"nome":"Cliente Teste","email":"cliente@raizes.com","perfil":"CLIENTE"}`
+- **Evidência:** `tests/test_api.py::test_T02_cliente_autenticado_consulta_proprio_perfil` (`PASSED`); no Swagger, autorizar com o JWT e executar `GET /usuarios/me`.
+
+#### T03 — Lista produtos ativos
+
+- **Endpoint + método:** `GET /produtos`
+- **Pré-condição:** produto ativo Cuscuz cadastrado; endpoint público.
+- **Entrada:** sem path, query ou body.
+- **Saída esperada:** `200 OK`; lista contendo `{"nome":"Cuscuz","preco":12.9,"ativo":true}`.
+- **Evidência:** `tests/test_api.py::test_T03_lista_produtos_ativos` (`PASSED`); no Swagger, executar `GET /produtos` e registrar o item retornado.
+
+#### T04 — Cadastra usuário cliente
+
+- **Endpoint + método:** `POST /usuarios`
+- **Pré-condição:** e-mail ainda não cadastrado.
+- **Entrada (body):** `{"nome":"Novo Cliente","email":"novo.cliente@exemplo.com","senha":"Senha123"}`
+- **Saída esperada:** `201 Created`; resposta contém `"email":"novo.cliente@exemplo.com"` e `"perfil":"CLIENTE"`; não retorna a senha.
+- **Evidência:** `tests/test_api.py::test_T04_cadastra_usuario_cliente` (`PASSED`); no Swagger, executar `POST /usuarios` e registrar status e campos públicos da resposta.
+
+#### T05 — Cria pedido e calcula total
+
+- **Endpoint + método:** `POST /pedidos`
+- **Pré-condição:** cliente autenticado; unidade ativa e Cuscuz ativo com estoque de 100 unidades.
+- **Entrada (header e body):** cabeçalho `Authorization` com token JWT válido; `{"unidadeId":<id>,"canalPedido":"APP","formaPagamento":"MOCK","itens":[{"produtoId":<id>,"quantidade":2}]}`
+- **Saída esperada:** `201 Created`; resposta contém `"status":"AGUARDANDO_PAGAMENTO"`, `"valorTotal":25.8` e item com `"quantidade":2` e `"precoUnitario":12.9`.
+- **Evidência:** `tests/test_api.py::test_T05_cria_pedido_e_calcula_total` (`PASSED`); no Swagger, executar `POST /pedidos` com IDs existentes e registrar status, total e itens.
+
+#### T06 — Aprova pagamento do próprio pedido
+
+- **Endpoint + método:** `POST /pagamentos`
+- **Pré-condição:** cliente autenticado e proprietário de um pedido aguardando pagamento; o teste cria esse pedido antes de pagar.
+- **Entrada (header e body):** cabeçalho `Authorization` com token JWT válido; `{"pedidoId":<id do pedido>,"resultado":"APROVADO"}`
+- **Saída esperada:** `201 Created`; resposta contém `"status":"APROVADO"`, `"statusPedido":"PAGO"` e `"valor":25.8`.
+- **Evidência:** `tests/test_api.py::test_T06_aprova_pagamento_do_proprio_pedido` (`PASSED`); no Swagger, criar um pedido e executar `POST /pagamentos` usando seu ID.
+
+### Cenários negativos — erros e regras de negócio
+
+#### T07 — Acesso sem token
+
+- **Endpoint + método:** `GET /usuarios/me`
+- **Pré-condição:** nenhuma; não enviar token.
+- **Entrada:** sem path, query, body ou header `Authorization`.
+- **Saída esperada:** `401 Unauthorized`; `{"detail":"Autenticação necessária."}`
+- **Evidência:** `tests/test_api.py::test_T07_acesso_sem_token_retorna_401` (`PASSED`); no Swagger, executar `GET /usuarios/me` sem autorização.
+
+#### T08 — Cliente tenta acessar recurso administrativo
+
+- **Endpoint + método:** `GET /usuarios/admin/teste`
+- **Pré-condição:** usuário autenticado com perfil `CLIENTE`.
+- **Entrada (header):** cabeçalho `Authorization` com token JWT de usuário `CLIENTE`; sem path, query ou body.
+- **Saída esperada:** `403 Forbidden`; `{"detail":"Você não possui permissão para esta operação."}`
+- **Evidência:** `tests/test_api.py::test_T08_cliente_sem_permissao_admin_retorna_403` (`PASSED`); no Swagger, autorizar como cliente e executar `GET /usuarios/admin/teste`.
+
+#### T09 — Login com senha incorreta
+
+- **Endpoint + método:** `POST /auth/login`
+- **Pré-condição:** usuário `cliente@raizes.com` cadastrado.
+- **Entrada (body):** `{"email":"cliente@raizes.com","senha":"senha-incorreta"}`
+- **Saída esperada:** `401 Unauthorized`; `{"detail":"E-mail ou senha inválidos."}`
+- **Evidência:** `tests/test_api.py::test_T09_login_com_senha_incorreta_retorna_401` (`PASSED`); no Swagger, executar `POST /auth/login` com a senha inválida.
+
+#### T10 — Pedido excede o estoque disponível
+
+- **Endpoint + método:** `POST /pedidos`
+- **Pré-condição:** cliente autenticado; unidade ativa e Cuscuz ativo com estoque de 100 unidades.
+- **Entrada (header e body):** cabeçalho `Authorization` com token JWT válido; `{"unidadeId":<id>,"canalPedido":"APP","formaPagamento":"MOCK","itens":[{"produtoId":<id>,"quantidade":101}]}`
+- **Saída esperada:** `409 Conflict`; `{"detail":"Estoque insuficiente para o produto Cuscuz."}`; pedido não é criado.
+- **Evidência:** `tests/test_api.py::test_T10_pedido_com_estoque_insuficiente_retorna_409` (`PASSED`); no Swagger, executar `POST /pedidos` com quantidade acima do estoque.
 
 ## Licença
 
